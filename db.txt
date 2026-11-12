@@ -1,0 +1,15 @@
+Database Name
+if0_42540835_db_17945968empwanga
+if0_42540835_task4
+
+MySQL Username
+if0_42540835 
+
+MySQL Password
+UBlzf5dJxyjLy  
+
+MySQL Hostname
+sql109.infinityfree.com
+
+MySQL Port (optional)
+3306

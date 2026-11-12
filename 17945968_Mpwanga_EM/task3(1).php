@@ -1,0 +1,679 @@
+<?php
+//========================================================
+// ICT3612 Assignment - Task 3
+//Zip File Upload and Dataset Counter
+// 17945968
+// Emmanuel Mpwanga
+//========================================================
+
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+//--------------------------------------------------------
+// Variables
+//--------------------------------------------------------
+
+// Message to display to the user
+$message = "";
+// Array to hold the results of class instance counts
+$results = array();
+// Array to hold the total counts for each folder (train, validate, test)
+$folderTotals = array(
+    "train" => 0,
+    "validate" => 0,
+    "test" => 0
+);
+// Variable to hold the grand total of instances across all classes and folders
+$grandTotal = 0;
+
+//--------------------------------------------------------
+// Create Upload Folder
+//--------------------------------------------------------
+// Define the directories for uploads and extracted datasets
+$uploadDir = "uploads/";
+// Define the directory for extracted datasets
+$extractDir = "dataset/";
+
+// Create the upload directory if it doesn't exist
+if (!file_exists($uploadDir)) {
+    mkdir($uploadDir, 0777, true);
+}
+
+if (!file_exists($extractDir)) {
+    mkdir($extractDir, 0777, true);
+}
+
+//--------------------------------------------------------
+// Function : Delete Directory Recursively
+//--------------------------------------------------------
+
+// Function to delete a folder and its contents recursively
+function deleteFolder($folder)
+{
+    // Check if the folder exists
+    if (!file_exists($folder)) {
+        return;
+    }
+
+    // Get all files and directories inside the folder, excluding '.' and '..'
+    $files = array_diff(scandir($folder), array('.', '..'));
+
+    // Loop through each file/directory and delete it
+    foreach ($files as $file) {
+
+        $path = $folder . DIRECTORY_SEPARATOR . $file;
+
+        if (is_dir($path)) {
+
+            deleteFolder($path);
+
+        } else {
+
+            unlink($path);
+
+        }
+
+    }
+
+    rmdir($folder);
+}
+
+//--------------------------------------------------------
+// Process Upload
+//--------------------------------------------------------
+
+// Check if the form has been submitted and a ZIP file has been uploaded
+if (isset($_POST["uploadZip"])) {
+
+    // Check if a file was uploaded
+    if (isset($_FILES["zipFile"])) {
+
+        // Check for upload errors
+        if ($_FILES["zipFile"]["error"] == 0) {
+
+            // Remove previous extraction
+
+            if (file_exists($extractDir)) {
+
+                deleteFolder($extractDir);
+
+            }
+
+            // Create a new extraction directory
+            mkdir($extractDir);
+
+            // Move the uploaded ZIP file to the upload directory
+            $zipName = basename($_FILES["zipFile"]["name"]);
+
+            // Define the path to save the uploaded ZIP file
+            $zipPath = $uploadDir . $zipName;
+
+            // Move the uploaded ZIP file to the specified path
+            move_uploaded_file(
+
+                $_FILES["zipFile"]["tmp_name"],
+
+                $zipPath
+
+            );
+
+            //------------------------------------------------
+            // Extract ZIP
+            //------------------------------------------------
+
+            // Create a new ZipArchive instance to handle the ZIP file
+            $zip = new ZipArchive();
+
+            // Attempt to open the uploaded ZIP file
+            if ($zip->open($zipPath) === TRUE) {
+
+                $zip->extractTo($extractDir);
+
+                $zip->close();
+
+                // Set a success message indicating that the dataset was uploaded successfully
+                $message = "Dataset uploaded successfully.";
+
+                //------------------------------------------------
+                // Locate dataset folder
+                //------------------------------------------------
+
+                // Initialize the dataset path variable
+                $datasetPath = "";
+
+                // Scan the extraction directory for folders
+                $folders = scandir($extractDir);
+
+                // Loop through each folder found in the extraction directory
+                foreach ($folders as $folder) {
+
+                    // Skip the current and parent directory entries
+                    if ($folder == "." || $folder == "..")
+                        continue;
+
+                    // Check if the current entry is a directory (dataset folder)
+                    if (is_dir($extractDir . $folder)) {
+
+                        $datasetPath =
+                            $extractDir . $folder . "/";
+
+                        break;
+
+                    }
+
+                }
+
+                //------------------------------------------------
+                // Verify classes.txt exists
+                //------------------------------------------------
+
+                // Define the path to the classes.txt file inside the dataset folder
+                $classesFile =
+                    $datasetPath . "classes.txt";
+
+                // Check if the classes.txt file exists
+                if (file_exists($classesFile)) {
+
+                    // Read the classes.txt file into an array, ignoring empty lines
+                    $classes =
+                        file(
+                            $classesFile,
+                            FILE_IGNORE_NEW_LINES |
+                            FILE_SKIP_EMPTY_LINES
+                        );
+
+                    //------------------------------------------------
+                    // Initialise Results Array
+                    //------------------------------------------------
+
+                    // Loop through each class read from classes.txt and initialize the results array with counts for train, validate, test, and total instances
+                    foreach ($classes as $class) {
+
+                        // Trim whitespace from the class name
+                        $class = trim($class);
+
+                        // Initialize the results array for the current class with counts set to 0
+                        $results[$class] = array(
+
+                            "train" => 0,
+
+                            "validate" => 0,
+
+                            "test" => 0,
+
+                            "total" => 0
+
+                        );
+
+                    }
+
+                    //------------------------------------------------
+                    // Folders to Scan
+                    //------------------------------------------------
+
+                    // Define the subfolders to scan for class instance counts
+                    $subFolders = array(
+
+                        "train",
+
+                        "validate",
+
+                        "test"
+
+                    );
+
+                    // Loop through each subfolder (train, validate, test) to count class instances
+                    foreach ($subFolders as $subFolder) {
+
+                        // Define the path to the current subfolder inside the dataset folder
+                        $folderPath =
+                            $datasetPath .
+                            $subFolder .
+                            "/";
+
+                        if (!is_dir($folderPath)) {
+
+                            continue;
+
+                        }
+
+                        // Scan the current subfolder for files
+                        $files =
+                            scandir($folderPath);
+
+                        // Loop through each file found in the current subfolder
+                        foreach ($files as $fileName) {
+
+                            // Skip the current and parent directory entries
+                            if (
+                                $fileName == "." ||
+                                $fileName == ".."
+                            )
+                                continue;
+
+                            if (
+                                pathinfo(
+                                    $fileName,
+                                    PATHINFO_EXTENSION
+                                ) != "txt"
+                            ) {
+                                continue;
+                            }
+
+                            //------------------------------------------------
+                            // Read txt file
+                            //------------------------------------------------
+
+                            $lines =
+                                file(
+                                    $folderPath . $fileName,
+                                    FILE_IGNORE_NEW_LINES |
+                                    FILE_SKIP_EMPTY_LINES
+                                );
+
+                            //------------------------------------------------
+                            // Process every line inside the txt file
+                            //------------------------------------------------
+
+                            foreach ($lines as $line) {
+
+                                $line = trim($line);
+
+                                if ($line == "") {
+                                    continue;
+                                }
+
+                                /*
+                                Expected format:
+
+                                0 x y w h
+
+                                */
+
+                                $parts = preg_split('/\s+/', $line);
+
+                                $classNumber = trim($parts[0]);
+
+                                // Check if the class number exists in the results array
+                                if (array_key_exists($classNumber, $results)) {
+
+                                    $results[$classNumber][$subFolder]++;
+
+                                    $results[$classNumber]["total"]++;
+
+                                    $folderTotals[$subFolder]++;
+
+                                    $grandTotal++;
+
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                } else {
+
+                    $message =
+                        "classes.txt was not found inside the dataset folder.";
+
+                }
+
+            } else {
+
+                $message =
+                    "Unable to open ZIP file.";
+
+            }
+
+        } else {
+
+            $message =
+                "Please choose a valid ZIP file.";
+
+        }
+
+    }
+
+}
+
+?>
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+
+    <title>Task 3</title>
+
+    <!-- Include the CSS styles for the page -->
+    <style>
+        /* Basic styles for the body and container */
+        body {
+
+            font-family: Arial, Helvetica, sans-serif;
+
+            background: #f4f4f4;
+
+            margin: 0;
+
+            padding: 0;
+
+        }
+
+        .container {
+
+            width: 1200px;
+
+            margin: auto;
+
+            background: white;
+
+            padding: 20px;
+
+            margin-top: 20px;
+
+            box-shadow: 0 0 10px rgba(0, 0, 0, .2);
+
+        }
+
+        /* Styles for headings*/
+        h1 {
+
+            background: #40e90d;
+            ;
+
+            color: white;
+
+            padding: 15px;
+
+        }
+
+        h2 {
+
+            color: #40e90d;
+            ;
+
+        }
+
+        /* Styles for tables */
+        table {
+
+            width: 100%;
+
+            border-collapse: collapse;
+
+            margin-top: 20px;
+
+            margin-bottom: 20px;
+
+        }
+
+        table th {
+
+            background: #40e90d;
+            ;
+
+            color: white;
+
+            padding: 10px;
+
+            border: 1px solid #ddd;
+
+        }
+
+        table td {
+
+            padding: 8px;
+
+            border: 1px solid #ddd;
+
+            text-align: center;
+
+        }
+
+        /* Styles for input fields */
+        input[type=file] {
+
+            padding: 10px;
+
+        }
+
+        input[type=submit] {
+
+            padding: 10px 20px;
+
+            background: #40e90d;
+            ;
+
+            color: white;
+
+            border: none;
+
+            cursor: pointer;
+
+            font-weight: bold;
+
+        }
+
+        /* Styles for messages */
+        .message {
+
+            background: #dff0d8;
+
+            padding: 15px;
+
+            margin-top: 15px;
+
+            margin-bottom: 15px;
+
+            border: 1px solid #b2d8b2;
+
+        }
+
+        /* Styles for the total row in tables */
+        .total {
+
+            font-weight: bold;
+
+            background: #ffffcc;
+
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <!-- Include the menu file for navigation -->
+    <?php include("menu.inc"); ?>
+
+    <!-- Main container for the content -->
+    <div class="container">
+
+        <h1>Task 3 - Dataset Counter</h1>
+
+        <!-- Display message if available -->
+        <?php
+
+        if ($message != "") {
+
+            echo "<div class='message'>$message</div>";
+
+        }
+
+        ?>
+
+        <!-- Form to upload the dataset ZIP file -->
+        <h2>Upload Dataset ZIP</h2>
+
+        <!-- Form to upload a ZIP file containing the dataset -->
+        <form method="post" enctype="multipart/form-data">
+
+            <input type="file" name="zipFile" accept=".zip" required>
+
+            <br><br>
+
+            <input type="submit" name="uploadZip" value="Upload Dataset">
+
+        </form>
+
+        <hr>
+
+        <!-- ===================================================== -->
+        <!-- RESULTS -->
+        <!-- ===================================================== -->
+
+        <!-- Display the results of class instance counts if available -->
+        <?php
+
+        if (count($results) > 0) {
+
+            ?>
+
+            <!-- Display the class instance counts in a table -->
+            <h2>Class Instance Counts</h2>
+
+            <table>
+
+                <tr>
+
+                    <th>Class</th>
+
+                    <th>Train</th>
+
+                    <th>Validate</th>
+
+                    <th>Test</th>
+
+                    <th>Total</th>
+
+                </tr>
+
+                <!-- Loop through each class in the results array and display the counts -->
+                <?php
+
+                foreach ($results as $class => $count) {
+
+                    ?>
+
+                    <!-- Display the counts for the current class in a table row -->
+                    <tr>
+
+                        <td><?php echo $class; ?></td>
+
+                        <td><?php echo $count["train"]; ?></td>
+
+                        <td><?php echo $count["validate"]; ?></td>
+
+                        <td><?php echo $count["test"]; ?></td>
+
+                        <td><?php echo $count["total"]; ?></td>
+
+                    </tr>
+
+                    <?php
+
+                }
+
+                ?>
+
+                <!-- Display the total counts for each folder and the grand total in a separate row -->
+                <tr class="total">
+
+                    <td><strong>Folder Totals</strong></td>
+
+                    <td><strong><?php echo $folderTotals["train"]; ?></strong></td>
+
+                    <td><strong><?php echo $folderTotals["validate"]; ?></strong></td>
+
+                    <td><strong><?php echo $folderTotals["test"]; ?></strong></td>
+
+                    <td><strong><?php echo $grandTotal; ?></strong></td>
+
+                </tr>
+
+            </table>
+
+            <!-- Display a summary of the total instances in each folder and the grand total -->
+            <h2>Summary</h2>
+
+            <!-- Display the total instances in each folder and the grand total in a separate table -->
+            <table>
+
+                <tr>
+
+                    <th>Folder</th>
+
+                    <th>Total Instances</th>
+
+                </tr>
+
+                <tr>
+
+                    <td>Train</td>
+
+                    <td><?php echo $folderTotals["train"]; ?></td>
+
+                </tr>
+
+                <tr>
+
+                    <td>Validate</td>
+
+                    <td><?php echo $folderTotals["validate"]; ?></td>
+
+                </tr>
+
+                <tr>
+
+                    <td>Test</td>
+
+                    <td><?php echo $folderTotals["test"]; ?></td>
+
+                </tr>
+
+                <tr class="total">
+
+                    <td>Dataset Total</td>
+
+                    <td><?php echo $grandTotal; ?></td>
+
+                </tr>
+
+            </table>
+
+            <?php
+
+        }
+
+        ?>
+
+        <hr>
+
+    </div>
+
+    <center>
+
+
+        <!-- Iframe for PHP Source Code -->
+        <iframe src="task3.txt" height="400" width="1200">
+
+            Your browser does not support iframes.
+
+        </iframe>
+
+    </center>
+
+</body>
+
+</html>
+
+<?php
+
+?>

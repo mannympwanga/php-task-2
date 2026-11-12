@@ -1,0 +1,1030 @@
+<?php
+//====================================================
+// ICT3612 Assignment 3 - Task 2
+// lecturer and module management system
+// 17945968
+// Emmanuel Mpwanga
+//====================================================
+
+// Database Connection
+$host = "sql109.infinityfree.com";
+$user = "if0_42540835";
+$password = "UBlzf5dJxyjLy";
+$database = "if0_42540835_db_17945968empwanga";
+
+$conn = mysqli_connect($host, $user, $password, $database);
+
+if (!$conn) {
+    die("Connection Failed : " . mysqli_connect_error());
+}
+
+$message = "";
+
+//====================================================
+// ADD MODULE
+//====================================================
+
+if (isset($_POST['addModule'])) {
+
+    $moduleCode = trim($_POST['moduleCode']);
+    $moduleName = trim($_POST['moduleName']);
+
+    // Check if module code and name are not empty
+    if ($moduleCode != "" && $moduleName != "") {
+
+        // Prepare the SQL statement to prevent SQL injection
+        $stmt = mysqli_prepare(
+            $conn,
+            "INSERT INTO Modules(ModuleCode,ModuleName)
+             VALUES(?,?)"
+        );
+
+        // Bind parameters to the prepared statement
+        mysqli_stmt_bind_param(
+            $stmt,
+            "ss",
+            $moduleCode,
+            $moduleName
+        );
+
+        // Execute the statement and check for success
+        if (mysqli_stmt_execute($stmt)) {
+
+            $message = "Module Added Successfully.";
+
+        } else {
+
+            $message = mysqli_error($conn);
+
+        }
+
+        mysqli_stmt_close($stmt);
+    }
+}
+
+//====================================================
+// UPDATE MODULELECTURERROLE
+//====================================================
+
+if (isset($_POST['updateRecord'])) {
+
+    // Get the form data
+    $moduleCode = $_POST['moduleCode'];
+    $lecturerID = $_POST['lecturerID'];
+    $roleID = $_POST['roleID'];
+    $year = $_POST['year'];
+
+    // Prepare the SQL statement to update the record
+    $stmt = mysqli_prepare(
+        $conn,
+
+        "UPDATE ModuleLecturerRole
+
+         SET Year=?
+
+         WHERE ModuleCode=?
+
+         AND LecturerID=?
+
+         AND RoleID=?"
+
+    );
+
+    // Bind parameters to the prepared statement
+    mysqli_stmt_bind_param(
+
+        $stmt,
+
+        "isss",
+
+        $year,
+
+        $moduleCode,
+
+        $lecturerID,
+
+        $roleID
+
+    );
+
+    // Execute the statement and check for success
+    if (mysqli_stmt_execute($stmt)) {
+
+        $message = "Record Updated Successfully.";
+
+    } else {
+
+        $message = mysqli_error($conn);
+
+    }
+
+    mysqli_stmt_close($stmt);
+}
+
+//====================================================
+// DELETE LECTURER
+//====================================================
+
+if (isset($_POST['deleteLecturer'])) {
+
+    // Get the LecturerID from the form
+    $lecturerID = $_POST['deleteLecturerID'];
+
+    // Start a transaction to ensure both deletions succeed or fail together
+    mysqli_begin_transaction($conn);
+
+    // Try to delete the lecturer and their associated records in ModuleLecturerRole
+    try {
+
+        mysqli_query(
+            $conn,
+            "DELETE FROM ModuleLecturerRole
+             WHERE LecturerID='$lecturerID'"
+        );
+
+        mysqli_query(
+            $conn,
+            "DELETE FROM Lecturers
+             WHERE LecturerID='$lecturerID'"
+        );
+
+        mysqli_commit($conn);
+
+        $message = "Lecturer Deleted Successfully.";
+
+    } catch (Exception $e) {
+
+        mysqli_rollback($conn);
+
+        $message = "Unable to Delete Lecturer.";
+
+    }
+
+}
+
+//====================================================
+// RUN QUERY
+//====================================================
+
+$queryOutput = "";
+
+if (isset($_POST['runQuery'])) {
+    // Get the selected query from the form
+    $selected = $_POST['query'];
+
+    // Prepare the SQL statement based on the selected query
+    switch ($selected) {
+
+        // Query 1: Display Modules Ordered By Module Name
+        case "1":
+
+            $sql =
+
+                "SELECT *
+
+             FROM Modules
+
+             ORDER BY ModuleName";
+
+            break;
+
+        // Query 2: Lecturers Whose Name Starts With J
+        case "2":
+
+            $sql =
+
+                "SELECT *
+
+             FROM Lecturers
+
+             WHERE LecturerName LIKE 'J%'";
+
+            break;
+        // Query 3: INNER JOIN
+        case "3":
+
+            $sql =
+
+                "SELECT
+
+            Modules.ModuleCode,
+
+            Modules.ModuleName,
+
+            Lecturers.LecturerName,
+
+            Roles.RoleName,
+
+            ModuleLecturerRole.Year
+
+            FROM ModuleLecturerRole
+
+            INNER JOIN Modules
+
+            ON ModuleLecturerRole.ModuleCode =
+            Modules.ModuleCode
+
+            INNER JOIN Lecturers
+
+            ON ModuleLecturerRole.LecturerID =
+            Lecturers.LecturerID
+
+            INNER JOIN Roles
+
+            ON ModuleLecturerRole.RoleID =
+            Roles.RoleID";
+
+            break;
+
+        // Query 4: WHERE AND
+        case "4":
+
+            $sql =
+
+                "SELECT *
+
+             FROM ModuleLecturerRole
+
+             WHERE Year='2026'
+
+             AND RoleID='R01'";
+
+            break;
+
+        // Query 5: MAX()
+        case "5":
+
+            $sql =
+
+                "SELECT
+
+            MAX(Year) AS LatestYear
+
+            FROM ModuleLecturerRole";
+
+            break;
+
+        default:
+
+            $sql = "";
+
+    }
+
+    // Execute the SQL query and display the results in a table
+    if ($sql != "") {
+
+        $result = mysqli_query($conn, $sql);
+
+        // Check if the query was successful and there are results to display
+        if ($result) {
+
+            $queryOutput = "<table class='queryTable'>";
+
+            $queryOutput .= "<tr>";
+
+            while ($field = mysqli_fetch_field($result)) {
+
+                $queryOutput .=
+                    "<th>{$field->name}</th>";
+
+            }
+
+            $queryOutput .= "</tr>";
+
+            while ($row = mysqli_fetch_assoc($result)) {
+
+                $queryOutput .= "<tr>";
+
+                foreach ($row as $value) {
+
+                    $queryOutput .=
+                        "<td>$value</td>";
+
+                }
+
+                $queryOutput .= "</tr>";
+
+            }
+
+            $queryOutput .= "</table>";
+
+        }
+
+    }
+
+}
+
+?>
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>ICT3612 Assignment</title>
+
+    <!-- <style> -->
+    <style>
+        /* style for the body  background and text font */
+        body {
+
+            font-family: Arial, Helvetica, sans-serif;
+
+            background: #f5f5f5;
+
+            margin: 20px;
+
+        }
+
+        /* style for the container (standard text colour)  */
+        .container {
+
+            width: 1200px;
+
+            margin: auto;
+
+            background: white;
+
+            padding: 20px;
+
+            border-radius: 10px;
+
+            box-shadow: 0 0 10px rgba(0, 0, 0, .2);
+
+        }
+
+        /* style for the header (sandard text colour)  */
+        h1 {
+
+            text-align: center;
+
+            color: #40e90d;
+            ;
+
+        }
+
+        h2 {
+
+            background: #40e90d;
+            ;
+
+            color: white;
+
+            padding: 10px;
+
+        }
+
+        /* style for table (border and background) */
+        table {
+
+            border-collapse: collapse;
+
+            width: 100%;
+
+            margin-bottom: 20px;
+
+        }
+
+        table th {
+
+            background: #40e90d;
+            ;
+
+            color: white;
+
+            padding: 10px;
+
+            border: 1px solid #ccc;
+
+        }
+
+        table td {
+
+            padding: 8px;
+
+            border: 1px solid #ccc;
+
+        }
+
+        /* style for input text */
+        input[type=text],
+        input[type=number] {
+
+            width: 300px;
+
+            padding: 8px;
+
+            margin: 5px;
+
+        }
+
+        input[type=submit] {
+
+            background: #40e90d;
+            ;
+
+            color: white;
+
+            padding: 10px 20px;
+
+            border: none;
+
+            cursor: pointer;
+
+        }
+
+        /* style for message box */
+        .message {
+
+            background: #ddffdd;
+
+            padding: 10px;
+
+            margin-bottom: 20px;
+
+            font-weight: bold;
+
+        }
+    </style>
+
+</head>
+
+<body>
+    <!-- Include the menu file -->
+    <?php include("menu.inc"); ?>
+
+    <!-- Main container for the content -->
+    <div class="container">
+
+        <!-- Display the page title -->
+        <h1>ICT3612 Database Application</h1>
+
+        <!-- Display pop up message -->
+        <?php
+        if ($message != "") {
+            echo "<div class='message'>$message</div>";
+        }
+        ?>
+
+        <!-- ===================================================== -->
+        <!-- ADD MODULE -->
+        <!-- ===================================================== -->
+
+        <!-- Form to add a new module -->
+        <h2>Add Module</h2>
+
+        <form method="post">
+
+            <!-- Table for input fields -->
+            <table>
+
+                <tr>
+
+                    <td width="200">Module Code</td>
+
+                    <td>
+
+                        <input type="text" name="moduleCode" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>Module Name</td>
+
+                    <td>
+
+                        <input type="text" name="moduleName" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td></td>
+
+                    <td>
+
+                        <input type="submit" name="addModule" value="Add Module">
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </form>
+
+        <!-- ===================================================== -->
+        <!-- UPDATE MODULELECTURERROLE -->
+        <!-- ===================================================== -->
+
+        <h2>Update Module Lecturer Role</h2>
+
+        <!-- Form to update a record in the ModuleLecturerRole table -->
+        <form method="post">
+
+            <!-- Table for input fields -->
+            <table>
+
+                <tr>
+
+                    <td width="200">
+
+                        Module Code
+
+                    </td>
+
+                    <td>
+
+                        <input type="text" name="moduleCode" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+
+                        Lecturer ID
+
+                    </td>
+
+                    <td>
+
+                        <input type="text" name="lecturerID" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+
+                        Role ID
+
+                    </td>
+
+                    <td>
+
+                        <input type="text" name="roleID" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td>
+
+                        Year
+
+                    </td>
+
+                    <td>
+
+                        <input type="number" name="year" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td></td>
+
+                    <td>
+
+                        <input type="submit" name="updateRecord" value="Update Record">
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </form>
+
+        <!-- ===================================================== -->
+        <!-- DELETE LECTURER -->
+        <!-- ===================================================== -->
+
+        <h2>Delete Lecturer</h2>
+
+        <!-- Form to delete a lecturer and their associated records in ModuleLecturerRole -->
+        <form method="post">
+
+            <!-- Table for input fields -->
+            <table>
+
+                <tr>
+
+                    <td width="200">
+
+                        Lecturer ID
+
+                    </td>
+
+                    <td>
+
+                        <input type="text" name="deleteLecturerID" required>
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td></td>
+
+                    <td>
+
+                        <input type="submit" name="deleteLecturer" value="Delete Lecturer">
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </form>
+
+        <!-- ===================================================== -->
+        <!-- SQL QUERIES -->
+        <!-- ===================================================== -->
+
+        <h2>Run SQL Queries</h2>
+
+        <!-- Form to select and run predefined SQL queries -->
+        <form method="post">
+
+            <!-- Radio buttons for selecting a query -->
+            <p>
+
+                <label>
+
+                    <input type="radio" name="query" value="1" required>
+
+                    Display Modules Ordered By Module Name
+
+                </label>
+
+            </p>
+
+            <p>
+
+                <label>
+
+                    <input type="radio" name="query" value="2">
+
+                    Lecturers Whose Name Starts With J
+
+                </label>
+
+            </p>
+
+            <p>
+
+                <label>
+
+                    <input type="radio" name="query" value="3">
+
+                    INNER JOIN
+
+                </label>
+
+            </p>
+
+            <p>
+
+                <label>
+
+                    <input type="radio" name="query" value="4">
+
+                    WHERE AND
+
+                </label>
+
+            </p>
+
+            <p>
+
+                <label>
+
+                    <input type="radio" name="query" value="5">
+
+                    MAX()
+
+                </label>
+
+            </p>
+
+            <input type="submit" name="runQuery" value="Run Query">
+
+        </form>
+
+        <!-- query results will be displayed here -->
+        <?php
+
+        if ($queryOutput != "") {
+
+            echo "<br>";
+
+            echo "<h2>Query Results</h2>";
+
+            echo $queryOutput;
+
+        }
+
+        ?>
+
+        <!-- ===================================================== -->
+        <!-- DISPLAY MODULES -->
+        <!-- ===================================================== -->
+
+        <h2>Modules</h2>
+
+        <!-- Display all records from the Modules table -->
+        <?php
+
+        $sql = "SELECT * FROM Modules";
+
+        $result = mysqli_query($conn, $sql);
+
+        // Check if there are any records in the Modules table
+        if (mysqli_num_rows($result) > 0) {
+
+            echo "<table>";
+
+            echo "<tr>";
+
+            echo "<th>Module Code</th>";
+
+            echo "<th>Module Name</th>";
+
+            echo "</tr>";
+
+            while ($row = mysqli_fetch_assoc($result)) {
+
+                echo "<tr>";
+
+                echo "<td>" . $row['ModuleCode'] . "</td>";
+
+                echo "<td>" . $row['ModuleName'] . "</td>";
+
+                echo "</tr>";
+
+            }
+
+            echo "</table>";
+
+        } else {
+
+            echo "No Modules Found.";
+
+        }
+
+        ?>
+
+        <!-- ===================================================== -->
+        <!-- DISPLAY LECTURERS -->
+        <!-- ===================================================== -->
+
+        <h2>Lecturers</h2>
+
+        <!-- Display all records from the Lecturers table -->
+        <?php
+
+        // Prepare the SQL statement to select all records from the Lecturers table
+        $sql = "SELECT * FROM Lecturers";
+
+        $result = mysqli_query($conn, $sql);
+
+        // Check if there are any records in the Lecturers table
+        if (mysqli_num_rows($result) > 0) {
+
+            echo "<table>";
+
+            echo "<tr>";
+
+            echo "<th>Lecturer ID</th>";
+
+            echo "<th>Lecturer Name</th>";
+
+            echo "</tr>";
+
+            while ($row = mysqli_fetch_assoc($result)) {
+
+                echo "<tr>";
+
+                echo "<td>" . $row['LecturerID'] . "</td>";
+
+                echo "<td>" . $row['LecturerName'] . "</td>";
+
+                echo "</tr>";
+
+            }
+
+            echo "</table>";
+
+        } else {
+
+            echo "No Lecturers Found.";
+
+        }
+
+        ?>
+
+        <!-- ===================================================== -->
+        <!-- DISPLAY ROLES -->
+        <!-- ===================================================== -->
+
+        <h2>Roles</h2>
+
+        <!-- Display all records from the Roles table -->
+        <?php
+
+        $sql = "SELECT * FROM Roles";
+
+        $result = mysqli_query($conn, $sql);
+
+        // Check if there are any records in the Roles table
+        if (mysqli_num_rows($result) > 0) {
+
+            echo "<table>";
+
+            echo "<tr>";
+
+            echo "<th>Role ID</th>";
+
+            echo "<th>Role Name</th>";
+
+            echo "</tr>";
+
+            while ($row = mysqli_fetch_assoc($result)) {
+
+                echo "<tr>";
+
+                echo "<td>" . $row['RoleID'] . "</td>";
+
+                echo "<td>" . $row['RoleName'] . "</td>";
+
+                echo "</tr>";
+
+            }
+
+            echo "</table>";
+
+        } else {
+
+            echo "No Roles Found.";
+
+        }
+
+        ?>
+
+        <!-- ===================================================== -->
+        <!-- DISPLAY MODULELECTURERROLE -->
+        <!-- ===================================================== -->
+
+        <h2>Module Lecturer Role</h2>
+
+        <?php
+
+        // Prepare the SQL statement to select all records from the ModuleLecturerRole table with JOINs to get related data
+        $sql = "
+
+SELECT
+
+ModuleLecturerRole.ModuleCode,
+
+Modules.ModuleName,
+
+ModuleLecturerRole.LecturerID,
+
+Lecturers.LecturerName,
+
+ModuleLecturerRole.RoleID,
+
+Roles.RoleName,
+
+ModuleLecturerRole.Year
+
+FROM ModuleLecturerRole
+
+INNER JOIN Modules
+
+ON Modules.ModuleCode =
+ModuleLecturerRole.ModuleCode
+
+INNER JOIN Lecturers
+
+ON Lecturers.LecturerID =
+ModuleLecturerRole.LecturerID
+
+INNER JOIN Roles
+
+ON Roles.RoleID =
+ModuleLecturerRole.RoleID
+
+ORDER BY
+
+Modules.ModuleCode;
+
+";
+
+        $result = mysqli_query($conn, $sql);
+
+        // Check if there are any records in the ModuleLecturerRole table
+        if (mysqli_num_rows($result) > 0) {
+
+            echo "<table>";
+
+            echo "<tr>";
+
+            echo "<th>Module Code</th>";
+
+            echo "<th>Module Name</th>";
+
+            echo "<th>Lecturer ID</th>";
+
+            echo "<th>Lecturer Name</th>";
+
+            echo "<th>Role ID</th>";
+
+            echo "<th>Role Name</th>";
+
+            echo "<th>Year</th>";
+
+            echo "</tr>";
+
+            while ($row = mysqli_fetch_assoc($result)) {
+
+                echo "<tr>";
+
+                echo "<td>" . $row['ModuleCode'] . "</td>";
+
+                echo "<td>" . $row['ModuleName'] . "</td>";
+
+                echo "<td>" . $row['LecturerID'] . "</td>";
+
+                echo "<td>" . $row['LecturerName'] . "</td>";
+
+                echo "<td>" . $row['RoleID'] . "</td>";
+
+                echo "<td>" . $row['RoleName'] . "</td>";
+
+                echo "<td>" . $row['Year'] . "</td>";
+
+                echo "</tr>";
+
+            }
+
+            echo "</table>";
+
+        } else {
+
+            echo "No Module Lecturer Records Found.";
+
+        }
+
+        ?>
+
+        <hr>
+
+        <p style="text-align:center;">
+
+        </p>
+
+    </div>
+
+
+    <h2 style="text-align:center;">PHP Source Code</h2>
+
+    <center>
+
+
+        <!-- Iframe for PHP Source Code -->
+        <iframe src="task2.txt" height="400" width="1200">
+
+            Your browser does not support iframes.
+
+        </iframe>
+
+    </center>
+
+</body>
+
+</html>
+
+<?php
+
+mysqli_close($conn);
+
+?>

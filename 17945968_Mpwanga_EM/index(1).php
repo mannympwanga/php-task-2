@@ -1,0 +1,1 @@
+<?php include 'menu.inc'; //* calling the menu file  for landing page *//?>
